@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SERE Tactical COP & MGRS</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: 'Courier New', monospace; background: #0d1117; color: #00ff66; margin: 0; padding: 10px; }
+        .screen { display: none; padding: 15px; }
+        .screen.active { display: block; }
+        h1, h2, h3 { border-bottom: 1px dashed #00ff66; padding-bottom: 5px; color: #fff; text-transform: uppercase; }
+        select, input, button { background: #161b22; color: #00ff66; border: 1px solid #00ff66; padding: 12px; margin: 10px 0; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 16px; }
+        button:active { background: #00ff66; color: #000; }
+        #map { height: 500px; border: 2px solid #00ff66; margin-top: 15px; background: #1f262e; }
+        .sos-btn { background: #ff0000; color: #fff; font-weight: bold; border: 2px solid #fff; font-size: 20px; animation: pulse 1.5s infinite; }
+        .sos-alert { background: #ff0000; color: #fff; padding: 15px; font-weight: bold; text-align: center; border: 3px double #fff; margin-bottom: 15px; display: none; }
+        .data-box { background: #161b22; border: 1px solid #30363d; padding: 10px; margin-top: 10px; font-size: 14px; }
+        .badge { padding: 3px 8px; border-radius: 3px; font-weight: bold; color: #000; }
+        .badge-mg { background: #0077ff; }
+        .badge-opfor { background: #ff3333; }
+        .badge-sere { background: #00ff66; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(0.97); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+    <div id="loginScreen" class="screen active">
+        <h1>SERE TAC-COP v2.0</h1>
+        <p>Wybierz swoją rolę w ćwiczeniach:</p>
+        <select id="roleSelect" onchange="toggleTeamInput()">
+            <option value="SERE">Zespół SERE (Uciekający)</option>
+            <option value="OPFOR">Grupa Pościgowa (OPFOR)</option>
+            <option value="MG">Mistrz Gry (ADMIN)</option>
+        </select>
+        
+        <div id="teamNameContainer">
+            <p>Wprowadź kryptonim (np. SERE-01 lub OPFOR-ALFA):</p>
+            <input type="text" id="teamNameInput" placeholder="Kryptonim...">
+        </div>
+        
+        <div id="mgPasswordContainer" style="display:none;">
+            <p>Hasło Autoryzacji Mistrza Gry:</p>
+            <input type="password" id="mgPasswordInput" placeholder="Hasło...">
+        </div>
+        
+        <button onclick="login()">URUCHOM SYSTEM TAKTYCZNY</button>
+    </div>
+
+    <div id="mainScreen" class="screen">
+        <div id="globalSosAlert" class="sos-alert">⚠️ !!! SOS ACTIVE !!! <span id="sosDetails"></span> ⚠️</div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>Kryptonim: <span id="userCallsign">---</span></h2>
+            <span id="userBadge" class="badge">---</span>
+        </div>
+
+        <div class="data-box">
+            <strong>TWOJA POZYCJA MGRS:</strong> <span id="currentMgrs" style="color:#fff; font-weight:bold;">Pobieranie GPS...</span><br>
+            <small>Lat/Lon: <span id="currentLatLon">---</span></small>
+        </div>
+
+        <div id="sereActionBox" style="display:none; margin-top:15px;">
+            <button class="sos-btn" onclick="triggerSos()">🚨 WYWOŁAJ ALARM SOS (URAZ) 🚨</button>
+        </div>
+
+        <h3>MAPA SATELITARNA SEKTORÓW (MGRS)</h3>
+        <div id="map"></div>
+        
+        <div id="mgPanel" style="display:none; margin-top:20px;">
+            <h3>PANEL MISTRZA GRY (Wszystkie Zespoły)</h3>
+            <div class="data-box" id="mgTable">Oczekiwanie na synchronizację z bazą chmury...</div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mgrs/1.0.0/mgrs.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <script>
+        // --- KROK 2: TUTAJ WKLEISZ SWOJE DANE KONFIGURACYJNE Z FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB9oUaN0LzUw88ejIRZ6evVaX-KUMk9Gx0",
+            authDomain: "sere-poligon.firebaseapp.com",
+            databaseURL: "https://sere-poligon-default-rtdb.firebaseio.com",
+            projectId: "sere-poligon",
+            storageBucket: "sere-poligon.firebasestorage.app",
+            messagingSenderId: "1051793576984",
+            appId: "1:1051793576984:web:3c165821190dd68abfdf6d"
+        };
+        // -----------------------------------------------------------------
+
+        // Inicjalizacja Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let userRole = "";
+        let userCallsign = "";
+        let map, userMarker;
+        const MG_PASSWORD = "SERE_MASTER_2026"; 
+
+        function toggleTeamInput() {
+            let role = document.getElementById('roleSelect').value;
+            document.getElementById('teamNameContainer').style.display = role === 'MG' ? 'none' : 'block';
+            document.getElementById('mgPasswordContainer').style.display = role === 'MG' ? 'block' : 'none';
+        }
+
+        function login() {
+            userRole = document.getElementById('roleSelect').value;
+            
+            if (userRole === 'MG') {
+                let pass = document.getElementById('mgPasswordInput').value;
+                if (pass !== MG_PASSWORD) {
+                    alert("BŁĄD: Niepoprawne hasło!");
+                    return;
+                }
+                userCallsign = "MISTRZ GRY";
+                document.getElementById('mgPanel').style.display = "block";
+            } else {
+                userCallsign = document.getElementById('teamNameInput').value.trim().toUpperCase();
+                if (!userCallsign) {
+                    alert("BŁĄD: Podaj swój Kryptonim!");
+                    return;
+                }
+                if (userRole === 'SERE') document.getElementById('sereActionBox').style.display = "block";
+            }
+
+            document.getElementById('userCallsign').innerText = userCallsign;
+            let badge = document.getElementById('userBadge');
+            badge.innerText = userRole;
+            badge.className = "badge badge-" + userRole.toLowerCase();
+
+            document.getElementById('loginScreen').classList.remove('active');
+            document.getElementById('mainScreen').classList.add('active');
+
+            initMap();
+            startTracking();
+            startNetworkSync();
+        }
+
+        function initMap() {
+            map = L.map('map').setView([50.0715, 21.7510], 13);
+            
+            L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+                maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: 'Map data © Google'
+            }).addTo(map);
+
+            // Rysowanie sektorów taktycznych z Twojego zdjęcia
+            let strefaA = [[50.0772, 21.7242], [50.0784, 21.7381], [50.0700, 21.7482], [50.0538, 21.7510], [50.0520, 21.7350], [50.0650, 21.7200]];
+            let strefaB = [[50.0784, 21.7381], [50.0750, 21.7640], [50.0630, 21.7660], [50.0560, 21.7610], [50.0538, 21.7510], [50.0700, 21.7482]];
+            let strefaC = [[50.0750, 21.7640], [50.0880, 21.7850], [50.0750, 21.7960], [50.0550, 21.7920], [50.0540, 21.7700], [50.0630, 21.7660]];
+
+            L.polygon(strefaA, {color: '#00bcff', weight: 3, fillOpacity: 0.15}).addTo(map).bindPopup("<b>SEKTOR ALFA (A)</b>");
+            L.polygon(strefaB, {color: '#00ff66', weight: 3, fillOpacity: 0.15}).addTo(map).bindPopup("<b>SEKTOR BRAVO (B)</b>");
+            L.polygon(strefaC, {color: '#ffcc00', weight: 3, fillOpacity: 0.15}).addTo(map).bindPopup("<b>SEKTOR CHARLIE (C)</b>");
+        }
+
+        function startTracking() {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(updatePosition, null, {
+                    enableHighAccuracy: true, maximumAge: 0, timeout: 5000
+                });
+            }
+        }
+
+        function updatePosition(position) {
+            let lat = position.coords.latitude;
+            let lon = position.coords.longitude;
+
+            let mgrsGrid = "Przeliczanie...";
+            try {
+                mgrsGrid = mgrs.fromPoint([lon, lat], 5);
+                mgrsGrid = mgrsGrid.replace(/^(\d{2}[A-Z])([A-Z]{2})(\d{5})(\d{5})$/, "$1 $2 $3 $4");
+            } catch(e) {}
+
+            document.getElementById('currentMgrs').innerText = mgrsGrid;
+            document.getElementById('currentLatLon').innerText = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+
+            if (!userMarker) {
+                userMarker = L.marker([lat, lon]).addTo(map).bindPopup(userCallsign).openPopup();
+                map.setView([lat, lon], 13);
+            } else {
+                userMarker.setLatLng([lat, lon]);
+            }
+
+            // WYSYŁANIE DO CHMURY FIREBASE (Zamiast dysku lokalnego)
+            if(userRole !== 'MG') {
+                database.ref('players/' + userCallsign).set({
+                    callsign: userCallsign, role: userRole, lat: lat, lon: lon, mgrs: mgrsGrid, timestamp: Date.now()
+                });
+            }
+        }
+
+        function triggerSos() {
+            if (confirm("🚨 CZY NA PEWNO WYSŁAĆ SYGNAŁ SOS? 🚨")) {
+                database.ref('global_sos').set({
+                    by: userCallsign, grid: document.getElementById('currentMgrs').innerText, active: true
+                });
+            }
+        }
+
+        function startNetworkSync() {
+            // Słuchacz alarmu SOS na żywo
+            database.ref('global_sos').on('value', (snapshot) => {
+                let sosData = snapshot.val();
+                if (sosData && sosData.active) {
+                    document.getElementById('sosDetails').innerText = `${sosData.by} na pozycji MGRS: ${sosData.grid}`;
+                    document.getElementById('globalSosAlert').style.display = "block";
+                    try { navigator.vibrate([300, 100, 300]); } catch(e){}
+                } else {
+                    document.getElementById('globalSosAlert').style.display = "none";
+                }
+            });
+
+            // Słuchacz pozycji graczy na żywo
+            database.ref('players').on('value', (snapshot) => {
+                let players = snapshot.val();
+                let mgTableHtml = "<ul>";
+
+                // Czyszczenie starych kopek z mapy
+                map.eachLayer((layer) => {
+                    if (layer instanceof L.CircleMarker || (layer instanceof L.Marker && layer !== userMarker)) {
+                        map.removeLayer(layer);
+                    }
+                });
+
+                if (players) {
+                    for (let key in players) {
+                        let pData = players[key];
+                        if (Date.now() - pData.timestamp > 300000 || pData.callsign === userCallsign) continue;
+
+                        let showOnMap = false;
+
+                        // ASYMETRIA WIDOCZNOŚCI
+                        if (userRole === 'MG') {
+                            showOnMap = true;
+                            mgTableHtml += `<li>[${pData.role}] <strong>${pData.callsign}</strong> - GRID: <span style='color:#fff'>${pData.mgrs}</span></li>`;
+                        } else if (userRole === 'OPFOR' && pData.role === 'OPFOR') {
+                            showOnMap = true; // Grupy pościgowe widzą tylko inne grupy pościgowe
+                        }
+
+                        if (showOnMap) {
+                            let color = pData.role === 'OPFOR' ? '#ff3333' : '#00ff66';
+                            L.circleMarker([pData.lat, pData.lon], {
+                                radius: 9, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9
+                            }).addTo(map).bindPopup(`<b>${pData.callsign}</b> (${pData.role})<br>MGRS: ${pData.mgrs}`);
+                        }
+                    }
+                }
+                mgTableHtml += "</ul>";
+                if (userRole === 'MG') document.getElementById('mgTable').innerHTML = mgTableHtml;
+            });
+        }
+    </script>
+</body>
+</html>
