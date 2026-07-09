@@ -140,20 +140,42 @@
         }
 
         function initMap() {
-            map = L.map('map').setView([50.0715, 21.7510], 13);
-            
-            L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
-                maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: 'Map data © Google'
-            }).addTo(map);
+            map = L.map('map').setView([50.0740, 21.7880], 14);
+    L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+        maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: 'Map data @ Google'
+    }).addTo(map);
 
-            // Rysowanie sektorów taktycznych z Twojego zdjęcia
-            let strefaA = [[50.0772, 21.7242], [50.0784, 21.7381], [50.0700, 21.7482], [50.0538, 21.7510], [50.0520, 21.7350], [50.0650, 21.7200]];
-            let strefaB = [[50.0784, 21.7381], [50.0750, 21.7640], [50.0630, 21.7660], [50.0560, 21.7610], [50.0538, 21.7510], [50.0700, 21.7482]];
-            let strefaC = [[50.0750, 21.7640], [50.0880, 21.7850], [50.0750, 21.7960], [50.0550, 21.7920], [50.0540, 21.7700], [50.0630, 21.7660]];
+    // Rysowanie sektorów taktycznych z Twojego zdjęcia
+    let strefaA = [
+        [50.0768, 21.7588],
+        [50.0812, 21.7712],
+        [50.0755, 21.7825],
+        [50.0635, 21.7845],
+        [50.0632, 21.7750],
+        [50.0675, 21.7610]
+    ];
+    let strefaB = [
+        [50.0812, 21.7712],
+        [50.0819, 21.7940],
+        [50.0735, 21.7995],
+        [50.0652, 21.8020],
+        [50.0620, 21.7930],
+        [50.0635, 21.7845]
+    ];
+    let strefaC = [
+        [50.0819, 21.7940],
+        [50.0875, 21.8075],
+        [50.0862, 21.8125],
+        [50.0750, 21.8190],
+        [50.0665, 21.8155],
+        [50.0655, 21.8040],
+        [50.0652, 21.8020],
+        [50.0735, 21.7995]
+    ];
 
-            L.polygon(strefaA, {color: '#00bcff', weight: 3, fillOpacity: 0.15}).addTo(map).bindPopup("<b>SEKTOR ALFA (A)</b>");
-            L.polygon(strefaB, {color: '#00ff66', weight: 3, fillOpacity: 0.15}).addTo(map).bindPopup("<b>SEKTOR BRAVO (B)</b>");
-            L.polygon(strefaC, {color: '#ffcc00', weight: 3, fillOpacity: 0.15}).addTo(map).bindPopup("<b>SEKTOR CHARLIE (C)</b>");
+    L.polygon(strefaA, {color: '#00bcff', weight: 3, fillOpacity: 0.15}).addTo(map).bindPopup("<b>SEKTOR ALFA (A)</b>");
+    L.polygon(strefaB, {color: '#00ff66', weight: 3, fillOpacity: 0.15}).addTo(map).bindPopup("<b>SEKTOR BRAVO (B)</b>");
+    L.polygon(strefaC, {color: '#ffcc00', weight: 3, fillOpacity: 0.15}).addTo(map).bindPopup("<b>SEKTOR CHARLIE (C)</b>");
         }
 
         function startTracking() {
