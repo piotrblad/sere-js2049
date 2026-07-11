@@ -3,33 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SERE JS2049 - SYSTEM TAKTYCZNY V4</title>
+    <title>SERE JS2049 - SYSTEM POLIGONOWY V6</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body {
             margin: 0; padding: 0; background-color: #050508; color: #00ff66;
             font-family: 'Courier New', Courier, monospace; overflow: hidden;
         }
-        /* EKRAN STARTOWY */
         #login-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #050508; z-index: 9999; display: flex; flex-direction: column;
             justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;
         }
-        /* EKRAN GŁÓWNY */
         #main-screen { display: none; width: 100%; height: 100vh; flex-direction: column; }
         #header { padding: 10px; background: #0a0a14; border-bottom: 2px solid #00ff66; text-align: center; position: relative; }
         #map { width: 100%; height: 50vh; border-bottom: 2px solid #00ff66; }
         #controls { padding: 15px; background: #0a0a14; flex-grow: 1; overflow-y: auto; }
         
-        /* PANEL MGRS W ROGU MAPY */
         #mgrs-overlay {
             position: absolute; top: 75px; right: 10px; z-index: 1000;
-            background: rgba(0, 0, 0, 0.85); border: 2px solid #00ff66;
+            background: rgba(0, 0, 0, 0.9); border: 2px solid #00ff66;
             color: #00ff66; padding: 8px 12px; font-weight: bold; font-size: 1.1rem;
             text-shadow: 0 0 5px #00ff66; box-shadow: 0 0 10px rgba(0,255,102,0.5);
         }
-
         .panel { border: 1px solid #00ff66; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 102, 0.03); }
         .timer-display {
             font-size: 3rem; font-weight: bold; text-align: center; color: #ff3333;
@@ -41,11 +37,10 @@
         }
         .btn:hover { background: #00cc52; }
         .btn-danger { background: #ff3333; color: #000; }
-        .btn-danger:hover { background: #cc0000; }
         select, input {
             background: #000; color: #00ff66; border: 1px solid #00ff66; padding: 12px; width: 100%; margin-bottom: 15px; box-sizing: border-box; font-family: 'Courier New', monospace; font-size: 1rem;
         }
-        .tracker-item { border-bottom: 1px solid rgba(0, 255, 102, 0.2); padding: 5px 0; font-size: 0.85rem; }
+        .tracker-item { border-bottom: 1px solid rgba(0, 255, 102, 0.2); padding: 6px 0; font-size: 0.85rem; }
         .tactical-label {
             background: rgba(10, 10, 20, 0.9); border: 1px solid #00ff66; color: #00ff66;
             font-family: 'Courier New', monospace; font-weight: bold; font-size: 12px; padding: 2px 6px; border-radius: 3px;
@@ -54,50 +49,39 @@
 </head>
 <body>
 
+<!-- WIDOK LOGOWANIA -->
 <div id="login-screen">
-    <h2 style="color: #00ff66; text-align: center; margin-bottom: 30px; text-shadow: 0 0 10px #00ff66;">REKRUTACJA SYSTEMU SERE-JS2049</h2>
-    
-    <input type="text" id="inputNick" placeholder="WPROWADŹ KRYPTONIM TAKTYCZNY..." autocomplete="off">
-    
-    <label style="align-self: flex-start; margin-bottom: 5px;">WYBIERZ SWOJĄ ROLĘ NA POLIGONIE:</label>
+    <h2 style="color: #00ff66; text-align: center; margin-bottom: 30px; text-shadow: 0 0 10px #00ff66;">REJESTRACJA SERE-JS2049</h2>
+    <input type="text" id="inputNick" placeholder="WPISZ KRYPTONIM..." autocomplete="off">
     <select id="inputRole" onchange="togglePassField()">
-        <option value="sere">UCZESTNIK SERE (Ucieczka)</option>
-        <option value="opfor">SIŁY OPFOR (Pościg)</option>
-        <option value="master">MISTRZ GRY (Sztab / Chromebook)</option>
+        <option value="sere">UCZESTNIK SERE</option>
+        <option value="opfor">SIŁY OPFOR</option>
+        <option value="master">MISTRZ GRY (CHROMEBOOK)</option>
     </select>
-
-    <div id="passFieldContainer" style="display: none; width: 100%;">
-        <input type="password" id="inputPass" placeholder="HASŁO DOWÓDZTWA...">
-    </div>
-
-    <button class="btn" onclick="validateAndLogin()" style="margin-top: 10px; padding: 15px;">URUCHOM SYSTEM TAKTYCZNY</button>
+    <div id="passFieldContainer" style="display: none; width: 100%;"><input type="password" id="inputPass" placeholder="HASŁO..."></div>
+    <button class="btn" onclick="validateAndLogin()">INICJUJ SYSTEM</button>
 </div>
 
-<div id="mgrs-overlay">MGRS: CZEKAM...</div>
+<div id="mgrs-overlay">MGRS: CZEKAM</div>
 
+<!-- WIDOK GŁÓWNY APLIKACJI -->
 <div id="main-screen">
-    <div id="header">
-        <h2 id="tacticalTitle" style="margin: 0; font-size: 1.1rem;">KANAŁ AKTYWNY</h2>
-    </div>
-
+    <div id="header"><h2 id="tacticalTitle" style="margin: 0; font-size: 1.1rem;">KANAŁ READY</h2></div>
     <div id="map"></div>
-
     <div id="controls">
         <div class="panel" id="gmDrawPanel" style="display: none;">
-            <h3 style="margin: 0 0 5px 0; font-size: 0.9rem; color: #ffcc00;">KONSOLA PROJEKTOWANIA STREF (GM)</h3>
-            <button class="btn" id="drawBtn" onclick="toggleDrawing()">▶ ROZPOCZNIJ RYSOWANIE STREFY</button>
-            <button class="btn btn-danger" onclick="clearDrawnZones()">WYCZYŚĆ REJESTR STREF</button>
+            <h3 style="margin:0 0 5px 0; font-size:0.9rem; color:#ffcc00;">KONSOLA MISTRZA GRY</h3>
+            <button class="btn" id="drawBtn" onclick="toggleDrawing()">▶ RYSOWANIE STREFY</button>
+            <button class="btn btn-danger" onclick="clearDrawnZones()">WYCZYŚĆ STREFY</button>
         </div>
-
         <div class="panel" id="timerPanel">
-            <h3 style="margin: 0 0 5px 0; font-size: 0.9rem;" id="timerLabel">STATUS MEDYCZNY: OPERACYJNY</h3>
+            <h3 style="margin:0 0 5px 0; font-size:0.9rem;" id="timerLabel">STATUS TAKTYCZNY: W AKCJI</h3>
             <div class="timer-display" id="countdown">00:00</div>
-            <button class="btn" style="background: #111; color: #ff3333; border: 1px solid #ff3333;" onclick="triggerHit()">RĘCZNE TRAFIENIE (AWARYJNE)</button>
+            <button class="btn" style="background:#111; color:#ff3333; border:1px solid #ff3333;" onclick="triggerHit()">KLIKNIJ PILOT (TEST)</button>
         </div>
-
         <div class="panel" id="adminPanel" style="display:none;">
-            <h3 style="margin: 0 0 5px 0; font-size: 0.9rem; color: #ffcc00;">MONITORING PASMA (LIVE)</h3>
-            <div id="trackersList">Brak danych z terenu...</div>
+            <h3 style="margin:0 0 5px 0; font-size:0.9rem; color:#ffcc00;">MONITORING LIVE (SZTAB CHROMEBOOK)</h3>
+            <div id="trackersList">Czekam na sygnały z terenu...</div>
         </div>
     </div>
 </div>
@@ -107,111 +91,104 @@
 <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.2.2.min.js"></script>
 
 <script>
-    let map, myMarker, watchId = null;
+    let map, myMarker, pubnub;
     let currentRole = 'sere', userId = 'OPERATOR';
     let isMaster = false, isHit = false, timerInterval = null, audioCtx = null;
     let remotePlayers = {};
     let lastLat = 50.0740, lastLon = 21.7880, lastMGRS = "CZEKAM";
-    
-    // Zmienne do rysowania stref na żywo przez GM
-    let isDrawing = false;
-    let drawnPoints = [];
-    let currentLivePoly = null;
-    let globalActiveZones = []; 
-
-    const pubnub = new PubNub({
-        publishKey: 'pub-c-ca664790-db0a-4bf3-b715-dbfb7a414cb3',
-        subscribeKey: 'sub-c-5eb1d274-ebfa-11e2-b069-02ee12824712',
-        userId: 'INIT_BOOT'
-    });
-    pubnub.subscribe({ channels: ['sere_tactical_net', 'sere_zones_net'] });
+    let isDrawing = false, drawnPoints = [], currentLivePoly = null, globalActiveZones = []; 
+    let tempMarkers = [];
 
     function togglePassField() {
-        const role = document.getElementById('inputRole').value;
-        document.getElementById('passFieldContainer').style.display = (role === 'master') ? 'block' : 'none';
+        document.getElementById('passFieldContainer').style.display = (document.getElementById('inputRole').value === 'master') ? 'block' : 'none';
     }
 
-    // WALIDACJA REJESTRACJI PRZED STARTEM
     function validateAndLogin() {
         let nick = document.getElementById('inputNick').value.trim();
         let role = document.getElementById('inputRole').value;
-        let pass = document.getElementById('inputPass').value;
+        if (!nick) return alert("Podaj kryptonim!");
+        if (role === 'master' && document.getElementById('inputPass').value !== 'admin2049') return alert("Złe hasło!");
 
-        if (!nick) { alert("BŁĄD: Musisz podać swój kryptonim!"); return; }
-        if (role === 'master' && pass !== 'admin2049') { alert("ODMOWA DOSTĘPU: Błędne hasło sztabu!"); return; }
-
-        userId = nick.toUpperCase();
-        currentRole = role;
+        userId = nick.toUpperCase(); currentRole = role;
         
+        // DYNAMICZNA INICJALIZACJA PUBNUB Z UNIKALNYM USER ID (Naprawia widoczność graczy)
+        pubnub = new PubNub({
+            publishKey: 'pub-c-ca664790-db0a-4bf3-b715-dbfb7a414cb3',
+            subscribeKey: 'sub-c-5eb1d274-ebfa-11e2-b069-02ee12824712',
+            userId: userId
+        });
+        pubnub.subscribe({ channels: ['sere_tactical_net', 'sere_zones_net'] });
+        setupNetworkListener();
+
         if (currentRole === 'master') {
             isMaster = true;
             document.getElementById('gmDrawPanel').style.display = 'block';
             document.getElementById('adminPanel').style.display = 'block';
             document.getElementById('timerPanel').style.display = 'none';
         }
-
-        // Zamiana ekranów
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('main-screen').style.display = 'flex';
-        document.getElementById('tacticalTitle').innerText = `ID: ${userId} // STRONA: ${currentRole.toUpperCase()}`;
-
-        initMap();
-        startTracking();
+        document.getElementById('tacticalTitle').innerText = `ID: ${userId} // ${currentRole.toUpperCase()}`;
+        
+        initMap(); startTracking();
     }
 
     function initMap() {
         map = L.map('map').setView([50.0740, 21.7880], 14);
-        L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] }).addTo(map);
+        L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'] }).addTo(map);
 
-        // SYSTEMOWA SIATKA WSPÓŁRZĘDNYCH (GENERATOR KWADRATÓW TAKTYCZNYCH)
+        // GENEROWANIE SIATKI TAKTYCZNEJ
         for(let l = 21.60; l <= 21.95; l += 0.005) { 
-            L.polyline([[49.95, l], [50.15, l]], {color: 'rgba(0, 255, 102, 0.25)', weight: 1, dashArray: '4,4'}).addTo(map); 
+            L.polyline([[49.95, l], [50.15, l]], {color: 'rgba(0, 255, 102, 0.3)', weight: 1, dashArray: '5,5'}).addTo(map); 
         }
         for(let t = 49.95; t <= 50.15; t += 0.0035) { 
-            L.polyline([[t, 21.60], [t, 21.95]], {color: 'rgba(0, 255, 102, 0.25)', weight: 1, dashArray: '4,4'}).addTo(map); 
+            L.polyline([[t, 21.60], [t, 21.95]], {color: 'rgba(0, 255, 102, 0.3)', weight: 1, dashArray: '5,5'}).addTo(map); 
         }
 
-        // Obsługa kliknięć na mapie do rysowania przez GM
+        // RYSOWANIE GRANIC PRZEZ ADMINA
         map.on('click', function(e) {
             if (!isMaster || !isDrawing) return;
+            
             drawnPoints.push([e.latlng.lat, e.latlng.lng]);
             
+            // Postaw tymczasową kropkę pomocniczą na mapie admina
+            let tm = L.circleMarker(e.latlng, {radius: 5, color: '#ffcc00', fillColor: '#ffcc00', fillOpacity: 1}).addTo(map);
+            tempMarkers.push(tm);
+
             if (currentLivePoly) map.removeLayer(currentLivePoly);
             currentLivePoly = L.polygon(drawnPoints, {color: '#ffcc00', weight: 3, fillOpacity: 0.3}).addTo(map);
         });
     }
 
-    // OBSŁUGA RYSOWANIA DLA MISTRZA GRY
     function toggleDrawing() {
         if (!isDrawing) {
-            isDrawing = true;
-            drawnPoints = [];
+            isDrawing = true; drawnPoints = []; tempMarkers = [];
             if (currentLivePoly) map.removeLayer(currentLivePoly);
-            document.getElementById('drawBtn').innerText = "🛑 ZAKOŃCZ I WYŚLIJ STREFĘ";
+            document.getElementById('drawBtn').innerText = "🛑 WYŚLIJ STREFĘ W TEREN";
             document.getElementById('drawBtn').style.background = '#ff3333';
         } else {
             isDrawing = false;
-            document.getElementById('drawBtn').innerText = "▶ ROZPOCZNIJ RYSOWANIE STREFY";
+            document.getElementById('drawBtn').innerText = "▶ RYSOWANIE STREFY";
             document.getElementById('drawBtn').style.background = '#00ff66';
+            
+            // Usuń kropki pomocnicze
+            tempMarkers.forEach(m => map.removeLayer(m));
+
             if (drawnPoints.length > 2) {
-                // Nadaj nową strefę do sieci poligonu
-                pubnub.publish({
-                    channel: 'sere_zones_net',
-                    message: { action: "NEW_ZONE", points: drawnPoints, id: 'ZONE_' + Date.now() }
+                pubnub.publish({ 
+                    channel: 'sere_zones_net', 
+                    message: { action: "NEW_ZONE", points: drawnPoints, id: 'Z_' + Date.now() } 
                 });
             }
         }
     }
 
-    function clearDrawnZones() {
-        pubnub.publish({ channel: 'sere_zones_net', message: { action: "CLEAR_ZONES" } });
+    function clearDrawnZones() { 
+        pubnub.publish({ channel: 'sere_zones_net', message: { action: "CLEAR_ZONES" } }); 
     }
 
     function createTacticalIcon(role, statusHit) {
-        let color = 'blue'; 
-        if (role === 'sere' && statusHit) color = 'green';
-        if (role === 'opfor' && !statusHit) color = 'red';
-        if (role === 'opfor' && statusHit) color = 'black';
+        let color = (role === 'sere') ? 'blue' : (statusHit ? 'black' : 'red');
         return new L.Icon({
             iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -219,11 +196,17 @@
         });
     }
 
+    function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    function playBeep(freq, duration) {
+        try { initAudio(); let osc = audioCtx.createOscillator(), g = audioCtx.createGain(); osc.connect(g); g.connect(audioCtx.destination); osc.frequency.value = freq; g.gain.setValueAtTime(0.4, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + duration); } catch(e) {}
+    }
+
     function triggerHit() {
         if (isHit || isMaster) return;
         isHit = true; clearInterval(timerInterval);
-        let seconds = currentRole === 'opfor' ? 60 : 20;
-        document.getElementById('timerLabel').innerText = "STATUS: RESPAWN (KARA)";
+        
+        let seconds = 60;
+        document.getElementById('timerLabel').innerText = "TRAFIONY! PRZESTOJ 1 MINUTA";
         document.getElementById('timerLabel').style.color = '#ff3333';
         sendNetworkUpdate();
 
@@ -231,19 +214,23 @@
             seconds--;
             let mins = Math.floor(seconds / 60); let secs = seconds % 60;
             document.getElementById('countdown').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            
+            playBeep(1000, 0.15);
+
             if (seconds <= 0) {
                 clearInterval(timerInterval); isHit = false;
-                document.getElementById('timerLabel').innerText = "STATUS: OPERACYJNY";
+                document.getElementById('timerLabel').innerText = "STATUS: W AKCJI";
                 document.getElementById('timerLabel').style.color = '#00ff66';
                 document.getElementById('countdown').innerText = "00:00";
+                playBeep(450, 0.8);
                 sendNetworkUpdate(); 
             }
         }, 1000);
     }
 
-    // CAPTURE PRZYCISKÓW GŁOŚNOŚCI (PILOT)
+    // PRZECHWYTYWANIE MIGAWEK BLUETOOTH
     window.addEventListener('keydown', function(e) {
-        if (e.keyCode === 174 || e.keyCode === 175 || e.key === "VolumeUp" || e.key === "VolumeDown") {
+        if (e.keyCode === 174 || e.keyCode === 175 || e.key === "VolumeUp" || e.key === "VolumeDown" || e.key === "Enter" || e.keyCode === 13) {
             e.preventDefault(); triggerHit();
         }
     }, true);
@@ -252,14 +239,13 @@
 
     function startTracking() {
         if (!navigator.geolocation) return;
-        watchId = navigator.geolocation.watchPosition(position => {
+        navigator.geolocation.watchPosition(position => {
             lastLat = position.coords.latitude; lastLon = position.coords.longitude;
             try {
                 let rawMgrs = mgrs.fromPoint([lastLon, lastLat], 5);
                 lastMGRS = rawMgrs.replace(/^(\d{2}[A-Z])([A-Z]{2})(\d{5})(\d{5})$/, "$1 $2 $3 $4");
             } catch(e) {}
             
-            // AKTUALIZACJA OKNA MGRS W ROGU EKRANU
             document.getElementById('mgrs-overlay').innerText = lastMGRS;
             
             if (!isMaster) {
@@ -286,62 +272,74 @@
             if (zone.polygonRef.getBounds().contains(pt)) insideAny = true;
         });
 
-        if (!insideAny && currentRole === 'sere') {
+        if (!insideAny) {
             document.getElementById('header').style.background = '#ff3333';
-            document.getElementById('tacticalTitle').innerText = "⚠️ OPUSZCZENIE STREFY SERE! ⚠️";
+            document.getElementById('tacticalTitle').innerText = "⚠️ POZA STREFĄ GRY! ⚠️";
+            playBeep(1800, 0.3); 
         } else {
             document.getElementById('header').style.background = '#0a0a14';
-            document.getElementById('tacticalTitle').innerText = `ID: ${userId} // STRONA: ${currentRole.toUpperCase()}`;
+            document.getElementById('tacticalTitle').innerText = `ID: ${userId} // ${currentRole.toUpperCase()}`;
         }
     }
 
     function sendNetworkUpdate() {
+        if(!pubnub) return;
         pubnub.publish({
             channel: 'sere_tactical_net',
             message: { id: userId, lat: lastLat, lon: lastLon, mgrs: lastMGRS, role: currentRole, hit: isHit, time: Date.now() }
         });
     }
 
-    // NASŁUCH RADIOWY PASMA GLOBALNEGO
-    pubnub.addListener({
-        message: function(event) {
-            let data = event.message;
+    function setupNetworkListener() {
+        pubnub.addListener({
+            message: function(event) {
+                let data = event.message;
 
-            // Kanał stref rysowanych na żywo przez GM
-            if (event.channel === 'sere_zones_net') {
-                if (data.action === "NEW_ZONE") {
-                    let p = L.polygon(data.points, {color: '#ff3333', weight: 2, fillOpacity: 0.15}).addTo(map);
-                    globalActiveZones.push({ id: data.id, polygonRef: p });
-                } else if (data.action === "CLEAR_ZONES") {
-                    globalActiveZones.forEach(z => map.removeLayer(z.polygonRef));
-                    globalActiveZones = [];
+                // Odbiornik sieci stref
+                if (event.channel === 'sere_zones_net') {
+                    if (data.action === "NEW_ZONE") {
+                        if (currentLivePoly && isMaster) map.removeLayer(currentLivePoly);
+                        let p = L.polygon(data.points, {color: '#ff3333', weight: 2, fillOpacity: 0.15}).addTo(map);
+                        globalActiveZones.push({ id: data.id, polygonRef: p });
+                    } else if (data.action === "CLEAR_ZONES") {
+                        globalActiveZones.forEach(z => map.removeLayer(z.polygonRef));
+                        globalActiveZones = [];
+                    }
+                    return;
                 }
-                return;
-            }
 
-            // Kanał pozycji graczy (Tylko dla GM)
-            if (!isMaster || data.id === userId) return;
-            remotePlayers[data.id] = data;
-
-            if (!map.hasLayer(remotePlayers[data.id].markerRef)) {
-                let m = L.marker([data.lat, data.lon], {icon: createTacticalIcon(data.role, data.hit)}).addTo(map);
-                m.bindTooltip(data.id, {permanent: true, direction: 'top', className: 'tactical-label', offset: [0, -35]});
-                remotePlayers[data.id].markerRef = m;
-            } else {
-                remotePlayers[data.id].markerRef.setLatLng([data.lat, data.lon]);
-                remotePlayers[data.id].markerRef.setIcon(createTacticalIcon(data.role, data.hit));
+                // Odbiornik sieci pozycji graczy (Widzą wszyscy nawzajem)
+                if (data.id === userId) return;
+                
+                if (!remotePlayers[data.id]) {
+                    remotePlayers[data.id] = data;
+                    let m = L.marker([data.lat, data.lon], {icon: createTacticalIcon(data.role, data.hit)}).addTo(map);
+                    m.bindTooltip(data.id, {permanent: true, direction: 'top', className: 'tactical-label', offset: [0, -35]});
+                    remotePlayers[data.id].markerRef = m;
+                } else {
+                    remotePlayers[data.id].markerRef.setLatLng([data.lat, data.lon]);
+                    remotePlayers[data.id].markerRef.setIcon(createTacticalIcon(data.role, data.hit));
+                    remotePlayers[data.id].hit = data.hit;
+                    remotePlayers[data.id].mgrs = data.mgrs;
+                    remotePlayers[data.id].time = data.time;
+                }
+                
+                if (isMaster) updateAdminList();
             }
-            updateAdminList();
-        }
-    });
+        });
+    }
 
     function updateAdminList() {
         let html = "";
         for (let id in remotePlayers) {
             let p = remotePlayers[id];
             if (Date.now() - p.time > 40000) { if(p.markerRef) map.removeLayer(p.markerRef); delete remotePlayers[id]; continue; }
-            let st = p.hit ? `<span style="color:red;font-weight:bold;">RESP</span>` : `<span style="color:#00ff66;">OK</span>`;
-            html += `<div class="tracker-item"><strong>${id}</strong> [${p.role.toUpperCase()}] - ${st}<br>MGRS: ${p.mgrs}</div>`;
+            
+            let st = p.hit 
+                ? `<span style="color:#ff3333; font-weight:bold; background:black; padding:2px 5px; border:1px solid red;">🚨 !!! STOP (PILOT) !!!</span>` 
+                : `<span style="color:#00ff66;">AKTYWNY</span>`;
+                
+            html += `<div class="tracker-item"><strong>${id}</strong> [${p.role.toUpperCase()}] - ${st}<br>GRID: ${p.mgrs}</div>`;
         }
         document.getElementById('trackersList').innerHTML = html;
     }
